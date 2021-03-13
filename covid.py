@@ -1,27 +1,30 @@
-
-import torch
-from torch.utils.data import DataLoader, Dataset, SubsetRandomSampler
-
-import torchvision.transforms as transforms
-import torchvision.models as models
-import torch.nn as nn
-import torch.optim as optim
-from torch import Tensor
-from torch.nn import BCEWithLogitsLoss
-from pathlib import Path
-from PIL import Image
-
-import pytorch_lightning as pl
-from pytorch_lightning import LightningModule
-from pytorch_lightning.callbacks import Callback
-from pytorch_lightning.metrics import Accuracy
-from pytorch_lightning import loggers as pl_loggers
-from pytorch_lightning.callbacks import ModelCheckpoint
-import torch.nn.functional as F
-import random
 import os
+import random
+from pathlib import Path
 from typing import Callable, Dict, List, Tuple, Union
 
+import pytorch_lightning as pl
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchvision.models as models
+import torchvision.transforms as transforms
+from PIL import Image
+from pytorch_lightning import LightningModule
+from pytorch_lightning import loggers as pl_loggers
+from pytorch_lightning.callbacks import Callback, ModelCheckpoint
+from pytorch_lightning.metrics import Accuracy
+from torch import Tensor
+from torch.nn import BCEWithLogitsLoss
+
+# NOTE: code below written for use in Python / Cluster
+# We install:
+#   * Pytorch Lightning Version 1.2.1 (https://github.com/PyTorchLightning/pytorch-lightning)
+#   * torch Version 1.7.1 (https://github.com/pytorch/pytorch)
+#   * torchvision Version 0.8.2 (https://github.com/pytorch/vision)
+#   * pathlib Version 1.0.1 (https://pathlib.readthedocs.io/en/pep428/)
+#   * pillow Version 7.0.0 (https://github.com/python-pillow/Pillow/blob/88bd672dafad68b419ea29bef941dfa17f941038/docs/installation.rst)
 
 HOME = os.environ.get("HOME")
 BASE = Path(str(HOME) + "/projects/def-jlevman/x2019/covid")
@@ -54,6 +57,11 @@ def read_text_labels(text_path: str) -> List[str]:
 
 class CovidDataset(Dataset):
     def __init__(self, root_dir, text_COVID, text_NonCOVID, transform):
+        """
+        Args:
+            txt_path (string): Path to the txt file with annotations.
+            root_dir (string): Directory with all the images.
+        """
         self.root_dir = root_dir
         self.text_path = [text_COVID, text_NonCOVID]
         self.classes = ["CT_COVID", "CT_NonCOVID"]
@@ -151,6 +159,9 @@ def covid_dataset_helper():
 
 
 class ResnetTransferLearning(LightningModule):
+    """
+    Lightning Module is adapted from https://pytorch-lightning.readthedocs.io/en/stable/starter/introduction_guide.html
+    """
     def __init__(self, input_shape, learning_rate=1e-5):
         super().__init__()
 
@@ -158,7 +169,7 @@ class ResnetTransferLearning(LightningModule):
         self.learning_rate = learning_rate
         self.input_shape = input_shape
         self.accuracy = pl.metrics.Accuracy()
-
+        # Initializing a pretrained resnet18 model.
         self.feature_extractor = models.resnet18(pretrained=True)
         self.feature_extractor.eval()
         """ we are using the convolutional output of each model, 1000 is the convolutional output of resnet18 """
@@ -173,6 +184,7 @@ class ResnetTransferLearning(LightningModule):
         return x
 
     def training_step(self, batch, batch_idx):
+        # training_step defined the train loop. It is independent of forward
         x, y = batch
         output = self(x)
         criterion = BCEWithLogitsLoss()
